@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NTD Rail Analysis — Walkthrough</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  html, body { height: 100%; overflow: hidden; }
+
+  #layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    grid-template-rows: 1fr 220px;
+    height: 100vh; width: 100vw;
+  }
+
+  /* ---------- SIDEBAR ---------- */
+  #sidebar {
+    grid-row: 1 / 3; grid-column: 1;
+    background: var(--bg-elevated);
+    border-right: 1px solid var(--rule);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+  #brand {
+    padding: var(--space-lg) var(--space-lg) var(--space-md);
+    border-bottom: 2px solid var(--rule);
+  }
+  #brand .kicker {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-eyebrow);
+    color: var(--text-muted);
+    margin-bottom: var(--space-xs);
+  }
+  #brand h1 {
+    font-size: var(--text-md);
+    line-height: 1.1;
+    margin-bottom: var(--space-xs);
+  }
+  #brand .subtitle {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  .chapter-label {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: var(--tracking-eyebrow);
+    text-transform: uppercase;
+    color: var(--text-faint);
+    padding: var(--space-md) var(--space-lg) var(--space-xs);
+    border-top: 1px solid var(--rule-soft);
+    margin-top: -1px;  /* collapses with previous border */
+  }
+  .chapter-label:first-of-type { border-top: 0; }
+
+  .stop {
+    cursor: pointer;
+    padding: var(--space-sm) var(--space-lg);
+    display: flex; align-items: flex-start; gap: var(--space-md);
+    border-left: 3px solid transparent;
+    transition: background 80ms;
+  }
+  .stop:hover { background: var(--bg-recessed); }
+  .stop.active {
+    background: var(--bg-recessed);
+    border-left-color: var(--accent);
+  }
+  .stop-number {
+    flex-shrink: 0;
+    width: 24px; height: 24px;
+    background: var(--bg);
+    color: var(--text-muted);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    border: 1px solid var(--rule-soft);
+  }
+  .stop.active .stop-number {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
+  .stop.visited .stop-number {
+    background: var(--primary);
+    color: var(--bg);
+    border-color: var(--primary);
+  }
+  .stop-body .stop-title {
+    font-size: var(--text-sm);
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--text);
+  }
+  .stop.active .stop-title { font-weight: 600; }
+  .stop-body .stop-sub {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  #sidebar-footer {
+    margin-top: auto;
+    padding: var(--space-md) var(--space-lg);
+    border-top: 1px solid var(--rule);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  /* ---------- CHART AREA ---------- */
+  #chart-area {
+    grid-row: 1; grid-column: 2;
+    position: relative;
+    background: var(--bg);
+  }
+  #chart-iframe {
+    width: 100%; height: 100%;
+    border: none;
+    background: var(--bg);
+  }
+  #chart-loading {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center; justify-content: center;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    background: rgba(244,244,240,0.7);
+  }
+
+  /* ---------- NARRATIVE ---------- */
+  #narrative {
+    grid-row: 2; grid-column: 2;
+    background: var(--bg-elevated);
+    border-top: 2px solid var(--rule);
+    padding: var(--space-md) var(--space-xl);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+  #nav-controls {
+    display: flex; align-items: center;
+    gap: var(--space-md);
+    margin-bottom: var(--space-sm);
+  }
+  .nav-btn {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--rule);
+    padding: 6px var(--space-md);
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-eyebrow);
+    cursor: pointer;
+    transition: background 80ms;
+  }
+  .nav-btn:hover:not(:disabled) {
+    background: var(--text);
+    color: var(--bg);
+  }
+  .nav-btn.primary {
+    background: var(--primary);
+    color: var(--bg);
+    border-color: var(--primary);
+  }
+  .nav-btn.primary:hover:not(:disabled) {
+    background: var(--primary-soft);
+    border-color: var(--primary-soft);
+  }
+  .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  #stop-indicator {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  #narrative-title {
+    font-size: var(--text-lg);
+    margin-bottom: var(--space-xs);
+  }
+  #narrative-text {
+    font-size: var(--text-sm);
+    color: var(--text);
+    line-height: 1.6;
+    max-width: 880px;
+  }
+  #narrative-text strong {
+    color: var(--primary);
+    font-weight: 600;
+  }
+  #narrative-text em {
+    color: var(--accent);
+    font-style: normal;
+    font-weight: 600;
+  }
+  #narrative-text .prompt {
+    display: inline-block;
+    padding: 1px 6px;
+    background: var(--accent-tint);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .kbd-hint {
+    margin-top: var(--space-sm);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--text-faint);
+  }
+  .kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    background: var(--bg);
+    border: 1px solid var(--rule-soft);
+    color: var(--text-muted);
+  }
+</style>
+</head>
+<body>
+
+<div id="layout">
+  <nav id="sidebar">
+    <div id="brand">
+      <div class="kicker">FTA · NTD</div>
+      <h1>Rail Analytical Framework</h1>
+      <div class="subtitle">8 artifacts · 2015 — 2024</div>
+    </div>
+    <div id="stops-list"></div>
+    <div id="sidebar-footer">
+      Data: National Transit Database<br>
+      Methodology in accompanying doc
+    </div>
+  </nav>
+
+  <div id="chart-area">
+    <iframe id="chart-iframe"></iframe>
+    <div id="chart-loading">Loading…</div>
+  </div>
+
+  <aside id="narrative">
+    <div id="nav-controls">
+      <button id="prev-btn" class="nav-btn">← Previous</button>
+      <button id="next-btn" class="nav-btn primary">Next →</button>
+      <span id="stop-indicator">1 of 12</span>
+    </div>
+    <h2 id="narrative-title"></h2>
+    <div id="narrative-text"></div>
+    <div class="kbd-hint">Navigate: <span class="kbd">←</span> <span class="kbd">→</span></div>
+  </aside>
+</div>
+
+<script>
+const W = {
+  SCATTER:      "Rail_Efficiency_Frontier_Multimode.html",
+  MALMQUIST:    "Rail_Malmquist_Decomposition_Multimode.html",
+  COST:         "Rail_Cost_Structure.html",
+  COMPARE:      "Rail_Agency_Comparison.html",
+  MAP:          "Rail_National_Map.html",
+  SAFETY:       "Rail_Safety_Efficiency.html",
+  ASSAULTS:     "Rail_Worker_Assaults.html",
+  EXPANSION:    "Rail_System_Expansion.html"
+};
+
+const STOPS = [
+  {
+    chapter:  "The landscape",
+    title:    "Every rail operator at a glance",
+    subtitle: "Multi-mode efficiency, 2024",
+    widget:   W.SCATTER,
+    hash:     "year=2024&modes=CR,HR,LR",
+    narrative:
+      "The U.S. has ~70 urban rail operators across three modes — commuter rail (circles), heavy " +
+      "rail (squares), and light rail (triangles). Each bubble is one agency, plotted by " +
+      "<strong>fare recovery ratio</strong> on X and <strong>cost per passenger mile</strong> on Y. " +
+      "Bubble size shows ridership; color encodes <em>DEA efficiency</em>, which benchmarks each " +
+      "agency against its same-mode peers. Amber-ringed bubbles sit on the efficient frontier. " +
+      "<span class='prompt'>Hover any bubble for details.</span>"
+  },
+  {
+    chapter:  "The landscape",
+    title:    "Everything broke in 2020",
+    subtitle: "Watch the COVID shock unfold",
+    widget:   W.SCATTER,
+    hash:     "year=2019&modes=CR,HR,LR",
+    narrative:
+      "We're at 2019. <span class='prompt'>Press play</span> in the chart and watch through 2021. " +
+      "Ridership collapsed far faster than agencies could cut costs, so cost per passenger mile " +
+      "explodes upward and fare recovery falls off a cliff. This isn't a few outliers; every " +
+      "operator shifts simultaneously. The scale of the visual jump is the pandemic shock, " +
+      "rendered literally. Any analysis spanning 2019–2022 must handle this shock explicitly " +
+      "rather than treat those years as business-as-usual."
+  },
+  {
+    chapter:  "The landscape",
+    title:    "Recovery has been uneven",
+    subtitle: "Commuter rail, 2024 snapshot",
+    widget:   W.SCATTER,
+    hash:     "year=2024&modes=CR",
+    narrative:
+      "Filtered to commuter rail and jumped to 2024. Some agencies have climbed back to " +
+      "pre-pandemic efficiency; others have not. Compare <strong>Metra</strong> and " +
+      "<strong>Caltrain</strong>: structurally similar commuter systems in dense metros, but " +
+      "Metra's blue-collar Loop ridership recovered while Caltrain's tech-commuter base did not. " +
+      "<em>Same methodology, entirely different outcomes</em> — the kind of finding an " +
+      "individual-level benchmarking framework is built to surface."
+  },
+  {
+    chapter:  "Decomposing change",
+    title:    "Industry shock or agency performance?",
+    subtitle: "Malmquist · 2019 → 2024",
+    widget:   W.MALMQUIST,
+    hash:     "pair=full&modes=CR,HR,LR",
+    narrative:
+      "The Malmquist productivity index decomposes each agency's productivity change into two " +
+      "forces: <strong>TC</strong> (technical change — did the whole frontier move?) on X, and " +
+      "<strong>TEC</strong> (technical efficiency change — did this agency move relative to peers?) " +
+      "on Y. Over 2019→2024, most operators sit in the <em>left half</em> — the frontier itself " +
+      "contracted. The most interesting stories are <em>top-left</em>: agencies that gained ground " +
+      "even while the industry was shrinking."
+  },
+  {
+    chapter:  "Decomposing change",
+    title:    "The recent picture is different",
+    subtitle: "Malmquist · 2022 → 2024",
+    widget:   W.MALMQUIST,
+    hash:     "pair=recent&modes=CR,HR,LR",
+    narrative:
+      "Switch to the 2022→2024 pair — the recovery window. The frontier is moving again (the " +
+      "right half is now populated). But not everyone came along. <strong>Top-right</strong> " +
+      "agencies are riding the recovery; <strong>bottom-right</strong> are <em>wasting</em> it — " +
+      "industry tailwinds exist but the agency is falling behind peers. That's the diagnostically " +
+      "useful quadrant: tailwind plus underperformance is a management problem, not an " +
+      "environmental one."
+  },
+  {
+    chapter:  "Where the money goes",
+    title:    "Cost structure at a glance",
+    subtitle: "Small multiples, sorted by efficiency",
+    widget:   W.COST,
+    hash:     "viewMode=percent&sort=efficiency&modes=CR,HR,LR",
+    narrative:
+      "Each card is one agency-mode. The stacked bar breaks operating cost into <strong>Vehicle " +
+      "Operations</strong>, <strong>Vehicle Maintenance</strong>, <strong>Facility Maintenance</strong>, " +
+      "<strong>General Administration</strong>, and any unallocated remainder. Sorted by DEA " +
+      "efficiency so the frontier operators sit at the top. <span class='prompt'>Click any card " +
+      "to expand</span> with peer-median overlay. The point isn't that efficient operators spend " +
+      "less — it's that their allocation mix tends to be stable, whereas struggling operators " +
+      "often have unusual concentrations in one category."
+  },
+  {
+    chapter:  "Head-to-head",
+    title:    "Two agencies, full comparison",
+    subtitle: "Metra vs Caltrain",
+    widget:   W.COMPARE,
+    hash:     "left=Metra&right=Caltrain",
+    narrative:
+      "Both are commuter rail, both serve dense metros, both have ~30-year operating histories. " +
+      "Side-by-side you can see how differently they've navigated the same decade. " +
+      "<strong>Operational snapshot</strong> (top): who serves more riders per dollar. " +
+      "<strong>Efficiency trajectory</strong> (middle): how each moved through the COVID shock and " +
+      "recovery. <strong>Malmquist mini-quadrant</strong>: productivity decomposition for both. " +
+      "<strong>Cost structure stacked area</strong> (bottom): how spending allocation shifted " +
+      "over time. <span class='prompt'>Change either dropdown</span> to make any comparison " +
+      "across the 65 agency-modes."
+  },
+  {
+    chapter:  "Geography",
+    title:    "The national picture",
+    subtitle: "Rail operators mapped",
+    widget:   W.MAP,
+    hash:     "metric=malmquist",
+    narrative:
+      "Every rail operator positioned geographically. Dot color encodes Malmquist total factor " +
+      "productivity change — the full 2019→2024 arc. Amber operators lost productivity; green " +
+      "gained. Toggle the metric to switch to <strong>DEA efficiency</strong> (who's on the " +
+      "frontier) or <strong>safety rate</strong> (incidents per revenue-mile). Geographic " +
+      "clustering tells you something regional factors matter — Sunbelt systems behaved very " +
+      "differently from Northeast systems over this period, and the map surfaces that without " +
+      "any statistical test."
+  },
+  {
+    chapter:  "The uncomfortable question",
+    title:    "Does operating cheap kill people?",
+    subtitle: "Safety vs efficiency scatter",
+    widget:   W.SAFETY,
+    hash:     "",
+    narrative:
+      "Safety events per 100M vehicle-revenue-miles (FTA's standard denominator) plotted against " +
+      "DEA efficiency on the X axis. Post–Part 674 reporting (2018+) only, to ensure consistent " +
+      "event definitions. The four quadrants are labeled: <em>low-cost and safe</em> is the " +
+      "headline quadrant — operators proving efficiency and safety aren't trade-offs. " +
+      "<em>High-cost and unsafe</em> is the serious problem quadrant — high spending without the " +
+      "safety returns that spending should buy. Specific event categories can be isolated to ask " +
+      "targeted questions like \"which operators have disproportionate collisions vs security " +
+      "events.\""
+  },
+  {
+    chapter:  "Workforce-side risk",
+    title:    "Worker assault rates — where it hurts",
+    subtitle: "Rail + bus, pooled 2022–2024 rates",
+    widget:   W.ASSAULTS,
+    hash:     "",
+    narrative:
+      "Separate from rider safety: how unsafe is operating transit as a job? The trend panel " +
+      "shows national assault event counts 2018–2024 — physical (amber) and non-physical " +
+      "(desaturated) stack. The rate panel shows per-operator assault rates normalized by " +
+      "vehicle-operations FTE. <span class='prompt'>Toggle mode to Bus</span> and the scale " +
+      "changes — bus has ~10× more absolute events than rail because bus has ~10× more frontline " +
+      "workers. Per-worker rates are more comparable. <span class='prompt'>Click any agency</span> " +
+      "to filter the trend panel to just that agency's trajectory."
+  },
+  {
+    chapter:  "Causal inference demonstration",
+    title:    "What rigorous DiD actually tells us",
+    subtitle: "System expansion effects · honest null result",
+    widget:   W.EXPANSION,
+    hash:     "",
+    narrative:
+      "Difference-in-differences with synthetic controls — the modern standard for causal " +
+      "inference from observational data. We identified 7 rail expansion events in 2017–2024 " +
+      "with sufficient pre/post data, constructed synthetic controls for each, and measured the " +
+      "DiD effect on DEA efficiency at T+2. The finding is <em>honestly null</em>: per-event " +
+      "effects range from −0.38 (BART) to +0.50 (Denver RTD), and the aggregate is statistically " +
+      "indistinguishable from zero. Why include this artifact at all? Because the right answer " +
+      "to a causal question is sometimes \"the data doesn't support the inference,\" and showing " +
+      "that clearly — rather than overclaiming — is what distinguishes rigorous work."
+  },
+  {
+    chapter:  "Wrap",
+    title:    "What you've just seen",
+    subtitle: "Summary of analytical capabilities",
+    widget:   W.SCATTER,
+    hash:     "year=2024&modes=CR,HR,LR",
+    narrative:
+      "Eight artifacts, built from a single public data source, exercising different analytical " +
+      "techniques: <strong>DEA frontier estimation</strong> with mode-specific benchmarking, " +
+      "<strong>Malmquist decomposition</strong> of productivity change, <strong>cost structure " +
+      "analysis</strong> with small-multiples, <strong>head-to-head comparison</strong>, " +
+      "<strong>geographic synthesis</strong>, <strong>safety-efficiency trade-off analysis</strong>, " +
+      "<strong>worker-assault exposure rates</strong>, and <strong>difference-in-differences " +
+      "causal inference</strong> with synthetic controls. Every artifact is a reusable pipeline — " +
+      "R + D3 — and each methodology is documented to survive quant cross-examination."
+  }
+];
+
+let currentIdx = 0;
+const visited = new Set();
+
+const stopsList = document.getElementById("stops-list");
+let lastChapter = null;
+STOPS.forEach((stop, i) => {
+  if (stop.chapter !== lastChapter) {
+    const label = document.createElement("div");
+    label.className = "chapter-label";
+    label.textContent = stop.chapter;
+    stopsList.appendChild(label);
+    lastChapter = stop.chapter;
+  }
+  const el = document.createElement("div");
+  el.className = "stop";
+  el.dataset.idx = i;
+  el.innerHTML = `
+    <div class="stop-number">${String(i + 1).padStart(2, '0')}</div>
+    <div class="stop-body">
+      <div class="stop-title">${stop.title}</div>
+      <div class="stop-sub">${stop.subtitle}</div>
+    </div>`;
+  el.addEventListener("click", () => navigateTo(i));
+  stopsList.appendChild(el);
+});
+
+const iframe    = document.getElementById("chart-iframe");
+const loading   = document.getElementById("chart-loading");
+const titleEl   = document.getElementById("narrative-title");
+const textEl    = document.getElementById("narrative-text");
+const indicator = document.getElementById("stop-indicator");
+const prevBtn   = document.getElementById("prev-btn");
+const nextBtn   = document.getElementById("next-btn");
+
+function navigateTo(idx) {
+  if (idx < 0 || idx >= STOPS.length) return;
+  currentIdx = idx;
+  visited.add(idx);
+  const stop = STOPS[idx];
+
+  document.querySelectorAll(".stop").forEach((el, i) => {
+    el.classList.toggle("active", i === idx);
+    el.classList.toggle("visited", visited.has(i) && i !== idx);
+  });
+
+  const src = stop.widget + (stop.hash ? "#" + stop.hash : "");
+  if (iframe.src.endsWith(src) === false) {
+    loading.style.display = "flex";
+    iframe.src = src;
+    iframe.onload = () => { loading.style.display = "none"; };
+  }
+
+  titleEl.textContent = stop.title;
+  textEl.innerHTML    = stop.narrative;
+  indicator.textContent = `${String(idx + 1).padStart(2, '0')} / ${String(STOPS.length).padStart(2, '0')}`;
+  prevBtn.disabled = (idx === 0);
+  nextBtn.disabled = (idx === STOPS.length - 1);
+}
+
+prevBtn.addEventListener("click", () => navigateTo(currentIdx - 1));
+nextBtn.addEventListener("click", () => navigateTo(currentIdx + 1));
+
+window.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+  if (e.key === "ArrowLeft")  { prevBtn.click(); e.preventDefault(); }
+  if (e.key === "ArrowRight") { nextBtn.click(); e.preventDefault(); }
+});
+
+navigateTo(0);
+</script>
+
+</body>
+</html>
